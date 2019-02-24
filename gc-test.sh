@@ -1,7 +1,7 @@
 #!/bin/bash
 
 if [[ ${#@} < 2 ]]; then
-    echo "Usage: $0 generates a number of mock extension api-services of different gvk's that are restarted periodically and kicks the kube api server periodically to trigger a specific GC bug"
+    echo "Usage: $0 generates a number of mock extension api-services of different gvk's that are restarted periodically and kicks the kube apiserver trigger a specific GC bug"
     echo "* num_mocks: number of mock extension api-services to generate"
     echo "* mock_restart_period: restart period of mock extension api-servers"
     exit 1
