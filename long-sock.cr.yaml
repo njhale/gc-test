@@ -1,0 +1,7 @@
+apiVersion: footwear.redhat.com/v1alpha1
+kind: Sock
+metadata:
+  name: long-sock
+  namespace: gc-test
+  labels:
+    gcTestParticipant: "true"

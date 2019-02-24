@@ -1,0 +1,139 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gc-test
+  labels:
+    gcTestParticipant: "true"
+---
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  name: socks.footwear.redhat.com
+  labels:
+    gcTestParticipant: "true"
+spec:
+  group: footwear.redhat.com
+  version: v1alpha1
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+  scope: Namespaced
+  names:
+    plural: socks
+    singular: sock
+    kind: Sock
+    listKind: SockList
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: aggregated-apiserver-clusterrole
+  labels:
+    gcTestParticipant: "true"
+rules:
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "watch", "list"]
+  - apiGroups: ["admissionregistration.k8s.io"]
+    resources:
+      ["mutatingwebhookconfigurations", "validatingwebhookconfigurations"]
+    verbs: ["get", "watch", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: hats-rolebinding
+  labels:
+    gcTestParticipant: "true"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: aggregated-apiserver-clusterrole
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: gc-test
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: hats-auth-reader
+  namespace: kube-system
+  labels:
+    gcTestParticipant: "true"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: extension-apiserver-authentication-reader
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: gc-test
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: redhat:system:auth-delegator
+  labels:
+    gcTestParticipant: "true"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:auth-delegator
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: gc-test
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ .Values.groupName }}-server
+  namespace: gc-test
+  labels:
+    app: {{ .Values.groupName }}-server
+    gcTestParticipant: "true"
+spec:
+  containers:
+    - name: mock-api
+      image: quay.io/coreos/mock-extension-apiserver@sha256:b1e4bfae7316aa6affae48003efde2a66c8ead9cda3197b51a9c953d75507d82
+      command: ["sh"]
+      args:
+        [
+          "-c",
+          "while true; do timeout -t {{ .Values.mockRestartPeriod }} -s TERM /bin/mock-extension-apiserver --mock-group-version {{ .Values.groupName }}.redhat.com/v1alpha1 --mock-kinds {{ .Values.kind }} --secure-port 5443 --debug; sleep 10; done",
+        ]
+  restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.groupName }}-server
+  namespace: gc-test
+  labels:
+    gcTestParticipant: "true"
+spec:
+  ports:
+    - port: 443
+      protocol: TCP
+      targetPort: 5443
+  selector:
+    app: {{ .Values.groupName }}-server
+---
+apiVersion: apiregistration.k8s.io/v1beta1
+kind: APIService
+metadata:
+  name: v1alpha1.{{ .Values.groupName }}.redhat.com
+  labels:
+    gcTestParticipant: "true"
+spec:
+  insecureSkipTLSVerify: true
+  group: {{ .Values.groupName }}.redhat.com
+  groupPriorityMinimum: 9900
+  versionPriority: 15
+  service:
+    name: {{ .Values.groupName }}-server
+    namespace: gc-test
+  version: v1alpha1
